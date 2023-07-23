@@ -15,28 +15,28 @@ typedef unsigned long long u64;
 typedef s64 Int;
 typedef u64 Bool;
 
-typedef struct {
-    s64 length; 
-    char *ptr; 
-} String;
+struct Swift::String {
+    s64 _countAndFlagsBits; 
+    char *_object; 
+};
 
-typedef struct {
+struct Swift::Any {
     s64 intValue;
     char *ptr;
     u64 unknown;
     s64 type;
-} Any;
+};
 
 // Array<Any>
-typedef struct {
+struct Swift::ArrayAny {
     s64 length;
-    Any *items;
-} ArrayAny;
+    struct Swift::Any *items;
+};
 
-typedef struct {
-    s64 length;
-    TYPE *items;
-} Array<TYPE>;
+// struct Swift::ArrayType {
+//    s64 length;
+//    TYPE *items;
+// } Array<TYPE>;
 
 ```
 
