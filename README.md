@@ -38,6 +38,15 @@ struct Swift_ArrayAny {
 };
 ```
 
+### Swift_String
+
+The swift strings specifically are one of the most common types to handle. Though they sound as pretty straight forward, their allocation may be a bit tricky to track for newcomers.
+
+In general, depeding on the `_countAndFlagsBits`, we can tell where the string is really allocated.
+
+- If its highest nibble is `0x0`, then it is stored in-place, inside the two `_countAndFlagsBits` and `_object` members
+- If its highest nibble is `0xD`, then it is stored in `_object + 0x20`
+
 ## Advanced types
 
 ### Struct
