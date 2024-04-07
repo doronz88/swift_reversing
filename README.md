@@ -2,42 +2,40 @@
 
 This documentation was created to better understand the underlying layer of swift code execution. Here we'll cover how each Swift "concept" is actually translated into binary form.
 
-You may import the following C header file to IDA (Ctrl+F9) to help you
-reverse the code more efficiently: [ida_header.h](./ida_header.h)
+You may run the following python script in IDA (Alt+F7) to help you
+reverse the code more efficiently: [`ida_script.py`](./ida_script.py)
+
+> **NOTE:** This script is practically is and probably always will be a work-in-progress, adding more and more types to make our lives better at reversing swift. Please submit PRs if you find stuff you're missing.
 
 ## Primitive types
 
 ```c
-
 typedef long long s64;
 typedef unsigned long long u64;
 
 typedef s64 Int;
 typedef u64 Bool;
 
-struct Swift::String {
-    s64 _countAndFlagsBits; 
-    char *_object; 
+struct Swift_String
+{
+  u64 _countAndFlagsBits;
+  void *_object;
 };
 
-struct Swift::Any {
-    s64 intValue;
-    char *ptr;
+union Swift_ElementAny {
+    Swift_String stringElement;
+};
+
+struct Swift_Any {
+    Swift_ElementAny element;
     u64 unknown;
     s64 type;
 };
 
-// Array<Any>
-struct Swift::ArrayAny {
+struct Swift_ArrayAny {
     s64 length;
-    struct Swift::Any *items;
+    Swift_Any *items;
 };
-
-// struct Swift::ArrayType {
-//    s64 length;
-//    TYPE *items;
-// } Array<TYPE>;
-
 ```
 
 ## Advanced types
@@ -50,23 +48,12 @@ either on local registers or inside a global residing inside the `__common` sect
 In general, as long as the struct's size <= `sizeof(u64) * 4`, it's whole data structure is returned on registers `X0`-`X3` from the init method and if we are required to re-purpose this registers, they are then immediately copied to their corresponding global residing inside the `__common` section.
 Any struct bigger than that, is returned on register `X8` and is also immediately copied to the same global region. Meaning - it's enough to declare the global residing in this region with it's correct type in order to correctly reverse usages of that return value.
 
-Since `String` is also a struct, created for instance using: `String.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)`, in order to declare this function properly inside IDA, we'll have to use the following horrible line:
+Please note `Swift::String` is also one such example of a Swift struct, whereas it has two members named:
 
-```c
-String __usercall __spoils<> String_init__builtinStringLiteral_utf8CodeUnitCount_isASCII__@<X1:X0>(char *_builtinStringLiteral@<X0>, u64 utf8CodeUnitCount@<X1>, u64 isASCII@<X2>);
-```
+- `_countAndFlagsBits` containing it's length OR'ed with flags bitmask
+- `_object` containing the actual c-string
 
-Now to explain:
-
-* This isn't a normal calling convention (such as `__cdecl`),  so we are required to specify it as `__usercall`.
-* The return type of this function is a `Struct` object of size <= `sizeof(u64) * 4`, meaning it's returned using `X0` & `X1`.
-* Since this is a `__usercall`, we are required to spcify the register which each argument is taken from.
-
-In order to refer to `self` within the method:
-
-* If object's size <= `sizeof(u64) * 4`, its arguments are passed as normal parameters each time.
-* We mark this functions as one which "spoils" since it touches non-standard registers.
-* Otherwise, `X20` is used for referring `self` and rest of arguments are packed as normal.
+This means each time the data structure is returned, it's returned on `X0`-`X1` and passed on two registers each time aswell.
 
 ### Class
 
@@ -99,25 +86,53 @@ struct SomeClass {
 
 Getters and setters on the other hand, aren't represented their and are compiled as they would in C++ - normal global functions getting their `self` objects from `X20`.
 
+### Type metadata
+
+Many of the global swift objects are stored globally in the `__common` section. When initializing a global of any type, the following snippet is generated (assuming we allocate the global `globalVar` of type `globalVar_t`)
+
+```c
+// repalce TYPE with the actual type
+void *typeMetadata = __swift_instantiateConcreteTypeFromMangledName(&demangling cache variable for type metadata for globalVar_t);
+__swift_allocate_value_buffer(typeMetadata, &globalVar);
+__swift_project_value_buffer(typeMetadata, &globalVar);
+```
+
+These two functions, `__swift_allocate_value_buffer` and `__swift_project_value_buffer` are basically to allocate the variable memory space and get a pointer to it, after consulting with the type metadata, if it allows the actual data to be in-place or use a pointer to an external space.
+
+> **NOTE:** Telling of the object storage type is handled in offset `-0x08` from its type metadata, prividing a vtable used to allocate this space and tell where was this space allocated (That's why you'll notice while reversing these weird offsets).
+
 ### va_list
 
-When calling a function which receives a variadic length of arguments, such as `print`, the compiler will use `_allocateUninitializedArray<A>(_:)` to create an array of type `Array<Any>` to create this as a single parameter.
+When calling a function which receives a variadic length of arguments, such as `print`, the compiler will use `_allocateUninitializedArray<A>(_:)` to create an array of type `Array<Any>` to create this as a single parameter. We represent this datatype as `Swift_ArrayAny`.
 
 Let's examine now a call to `print(_:separator:terminator:)`.
 
 We'll need to make this function signature as:
 
 ```c
-void __usercall __spoils<> print___separator_terminator__(ArrayAny *items@<X0>, String separator@<X2:X1>, String terminator@<X4:X3>)
+void __fastcall print___separator_terminator__(Swift_ArrayAny *printString, Swift_String seperator, Swift_String terminator);
 ```
 
-What this horrible piece of code means is:
+### Template functions
 
-* This is also a `__usercall`.
-* First argument is a `va_list` which is actually an `ArrayAny`.
-* Second and thrid arguments are of type `String` - which is again a `Struct` object of two elements that are passed via two registers (since its size is <= `sizeof(u64) * 4`))
+Many of the Swift functions often handle tempaltes. This is usually seen in method signature as: `doSomething<A>()`. In order to trigger the correct method to handle such invocations, the compiler adds an additional argument as the last one which acts the the "type metadata" - practically a vtable. While reversing, assuming we are only focused on understanding the code-flow, this parameter is usually not very important.
+
+The templates signatures usually look something like this:
+
+```c
+// _finalizeUninitializedArray<A>(_:)
+Swift_ArrayAny *__fastcall _allocateUninitializedArray_A(u64 count, void *arrayType);
+```
+
+And triggering these functions looks like this:
+
+```c
+// typeAny = &type metadata for Any + 8
+// The type witness is located at offset 8 from the actual type information
+_finalizeUninitializedArray<A>(_:)(array, typeAny);
+```
 
 ## References
 
-* <https://hex-rays.com/blog/igors-tip-of-the-week-51-custom-calling-conventions/>
-* <https://www.swift.org/documentation/>
+- <https://hex-rays.com/blog/igors-tip-of-the-week-51-custom-calling-conventions/>
+- <https://www.swift.org/documentation/>
