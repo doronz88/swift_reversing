@@ -42,10 +42,10 @@ struct Swift_ArrayAny {
 
 The swift strings specifically are one of the most common types to handle. Though they sound as pretty straight forward, their allocation may be a bit tricky to track for newcomers.
 
-In general, depeding on the `_countAndFlagsBits`, we can tell where the string is really allocated.
+In general, depeding on the `_countAndFlagsBits` and the `_object`, we can tell where the string is really allocated.
 
-- If its highest nibble is `0x0`, then it is stored in-place, inside the two `_countAndFlagsBits` and `_object` members
-- If its highest nibble is `0xD`, then it is stored in `_object + 0x20`
+- If `string->_object >> 60 == 0xE`, then it is stored in-place, inside the two `_countAndFlagsBits` and `_object` members
+- If `string->_countAndFlagsBits >> 60 == 0xD`, then the actual object is in: `(string->_object & 0xffffffffffffff) + 0x20`
 
 ## Advanced types
 
@@ -95,7 +95,12 @@ struct SomeClass {
 
 Getters and setters on the other hand, aren't represented their and are compiled as they would in C++ - normal global functions getting their `self` objects from `X20`.
 
-### Type metadata
+## Type metadata
+
+The swift runtime keeps a record for every used type. This type metatdata is then used for RTTI, template methods, allocate the object's space, etc.
+For further information please read:
+
+<https://github.com/apple/swift/blob/main/docs/ABI/TypeMetadata.rst>
 
 Many of the global swift objects are stored globally in the `__common` section. When initializing a global of any type, the following snippet is generated (assuming we allocate the global `globalVar` of type `globalVar_t`)
 
@@ -108,9 +113,11 @@ __swift_project_value_buffer(typeMetadata, &globalVar);
 
 These two functions, `__swift_allocate_value_buffer` and `__swift_project_value_buffer` are basically to allocate the variable memory space and get a pointer to it, after consulting with the type metadata, if it allows the actual data to be in-place or use a pointer to an external space.
 
-> **NOTE:** Telling of the object storage type is handled in offset `-0x08` from its type metadata, prividing a vtable used to allocate this space and tell where was this space allocated (That's why you'll notice while reversing these weird offsets).
+> **NOTE:** Sometimes IDA cannot parse the pointer `__swift_instantiateConcreteTypeFromMangledName` is referring to. In that case, use the following arithmetic expression to tell the actual type: `ctypes.c_int64(ea).value+ctypes.c_int32(idc.dword(ea)).value`
 
-### va_list
+Also, on many occasions, these allocations will be used on the stack dynamically. In that case you'll see a lot of calls to `__chkstk_darwin()`, whereas the spaces between them are the used local variables.
+
+## va_list
 
 When calling a function which receives a variadic length of arguments, such as `print`, the compiler will use `_allocateUninitializedArray<A>(_:)` to create an array of type `Array<Any>` to create this as a single parameter. We represent this datatype as `Swift_ArrayAny`.
 
@@ -121,6 +128,8 @@ We'll need to make this function signature as:
 ```c
 void __fastcall print___separator_terminator__(Swift_ArrayAny *printString, Swift_String seperator, Swift_String terminator);
 ```
+
+In addition, if the function receives multiple protocols in the form of: `<A, B, C>`, then multiple type metadata are passed.
 
 ### Template functions
 
@@ -141,7 +150,13 @@ And triggering these functions looks like this:
 _finalizeUninitializedArray<A>(_:)(array, typeAny);
 ```
 
+## Error handling
+
+If a method raises an error, it will write its error object into `X21`. It is then raised using `swift_unexpectedError()`.
+If the user raised an error explicitly, it will instead use `swift_allocError()` to allocate the error using the corresponding type metadata.
+
 ## References
 
 - <https://hex-rays.com/blog/igors-tip-of-the-week-51-custom-calling-conventions/>
 - <https://www.swift.org/documentation/>
+- <https://github.com/apple/swift/blob/main/docs/ABI/>
