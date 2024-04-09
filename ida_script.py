@@ -1,4 +1,13 @@
+from typing import Generator
+
+import ida_bytes
+import ida_funcs
+import ida_hexrays
+import ida_kernwin
+import ida_regfinder
 import idc
+
+SWIFT_PLUGIN_HOTKEY = 'Ctrl+5'
 
 DECLS = """
 typedef long long s64;
@@ -86,6 +95,28 @@ FUNCTIONS_SIGNATURES = {
 }
 
 
+def set_comment(ea: int, comment: str) -> None:
+    print(f'set cmt: 0x{ea:x} "{comment}"')
+    ida_bytes.set_cmt(ea, comment, 0)
+    cfunc = ida_hexrays.decompile(ea)
+    eamap = cfunc.get_eamap()
+    try:
+        decomp_obj_addr = eamap[ea][0].ea
+
+        tl = ida_hexrays.treeloc_t()
+        tl.ea = decomp_obj_addr
+        for itp in range(ida_hexrays.ITP_SEMI, ida_hexrays.ITP_COLON):
+            tl.itp = itp
+            cfunc.set_user_cmt(tl, comment)
+            if not cfunc.has_orphan_cmts():
+                break
+    except:
+        print('failed')
+        return
+
+    cfunc.save_user_cmts()
+
+
 def fix_swift_types() -> None:
     idc.parse_decls(DECLS)
 
@@ -96,5 +127,33 @@ def fix_swift_types() -> None:
         idc.SetType(ea, sig)
 
 
-if __name__ == '__main__':
+def ida_find_all(expression: str, start_ea: int, end_ea: int) -> Generator[int, None, None]:
+    ea = idc.find_binary(start_ea, idc.SEARCH_DOWN | idc.SEARCH_REGEX, expression)
+    while ea != idc.BADADDR and ea < end_ea:
+        yield ea
+        ea = idc.find_binary(ea + 1, idc.SEARCH_DOWN | idc.SEARCH_REGEX, expression)
+
+
+def add_swift_string_comments() -> None:
+    func = ida_funcs.get_func(idc.get_screen_ea())
+
+    # search for:
+    #   SUB             Rd, Rt, #0x20
+    #   ORR             X1, X8,  # 0x8000000000000000
+    for ea in ida_find_all('?? ?? 00 D1 ?? ?? 41 B2', func.start_ea, func.end_ea):
+        orr_ea = ea + 4
+        reg_value = idc.get_operand_value(orr_ea, 1)
+        string_assignment_ea = ida_regfinder.find_reg_value(orr_ea, reg_value)
+        string = idc.get_strlit_contents(string_assignment_ea + 0x20, -1, 0).decode()
+        set_comment(orr_ea, string)
+
+
+def main() -> None:
     fix_swift_types()
+
+    ida_kernwin.del_idc_hotkey(SWIFT_PLUGIN_HOTKEY)
+    ida_kernwin.add_hotkey(SWIFT_PLUGIN_HOTKEY, add_swift_string_comments)
+
+
+if __name__ == '__main__':
+    main()

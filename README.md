@@ -5,6 +5,8 @@ This documentation was created to better understand the underlying layer of swif
 You may run the following python script in IDA (Alt+F7) to help you
 reverse the code more efficiently: [`ida_script.py`](./ida_script.py)
 
+The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occurences within the current function.  
+
 > **NOTE:** This script is practically is and probably always will be a work-in-progress, adding more and more types to make our lives better at reversing swift. Please submit PRs if you find stuff you're missing.
 
 ## Primitive types
