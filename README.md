@@ -3,7 +3,7 @@
 This documentation was created to better understand the underlying layer of swift code execution. Here we'll cover how each Swift "concept" is actually translated into binary form.
 
 You may run the following python script in IDA (Alt+F7) to help you
-reverse the code more efficiently: [`ida_script.py`](./ida_script.py)
+reverse the code more efficiently: [`swift.py`](https://github.com/doronz88/ida-scripts/blob/main/swift.py)
 
 The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occurences within the current function.  
 
