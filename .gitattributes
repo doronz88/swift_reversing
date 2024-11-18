@@ -1,0 +1,8 @@
+media/proto_fixed.png filter=lfs diff=lfs merge=lfs -text
+media/proto_notfixed.png filter=lfs diff=lfs merge=lfs -text
+media/proto_parsed.png filter=lfs diff=lfs merge=lfs -text
+media/assocty.png filter=lfs diff=lfs merge=lfs -text
+media/ida_options_off.png filter=lfs diff=lfs merge=lfs -text
+media/pcd_notifxed.png filter=lfs diff=lfs merge=lfs -text
+media/pcd_renamed.png filter=lfs diff=lfs merge=lfs -text
+media/pcd_wip.png filter=lfs diff=lfs merge=lfs -text
