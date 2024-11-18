@@ -9,6 +9,39 @@ The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occuren
 
 > **NOTE:** This script is practically is and probably always will be a work-in-progress, adding more and more types to make our lives better at reversing swift. Please submit PRs if you find stuff you're missing.
 
+## Swift segments
+
+Before continuing, I want to mention Scott Knight for the amazing work as most of this info is taken from him backed by my research.
+
+One of the most important ideas introduced in Swift was the use of `relative pointers`. This idea enables these pointers not to be rebased thus improving efficiency. (https://github.com/swiftlang/swift/blob/main/include/swift/Basic/RelativePointer.h). As stated:
+
+```
+Some data structures emitted by the Swift compiler use relative indirect addresses in order to minimize startup cost for a process. By referring to the offset of the global offset table entry for a symbol, instead of directly referring to the symbol, compiler-emitted data structures avoid requiring unnecessary relocation at dynamic linking time.
+```
+
+These relative pointers make use of int32 types (instead of 8 bytes which would be the traditional pointer!). As a simple pseudocode, you can think of an offset like this:
+
+```
+dstAddress = currentAddress + (int32)offset 
+```
+
+When analyzing a binary that makes use of the Swift runtime, you will be able to find lots of swift5_* segments. These segments (together with __const) provide Swift with all it needs. 
+
+Following, you'll see a description of those:
+
+> **NOTE:** It is possible that not all of them are specified here. If you find one that it is not, please open an issue. This guide is WIP :)
+
+
+- `__TEXT.__swift5_protos`
+- `__TEXT.__swift5_proto`
+- `__TEXT.__swift5_types`
+- `__TEXT.__const`
+- `__TEXT.__swift5_fieldmd`
+- `__TEXT.__swift5_assocty`
+- `__TEXT.__swift5_builtin`
+- `__TEXT.__swift5_reflstr`  
+
+
 ## Primitive types
 
 ```c
