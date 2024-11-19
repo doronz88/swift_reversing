@@ -62,7 +62,7 @@ type ProtocolDescriptor struct {
 - `__TEXT.__swift5_proto`: This section is a list of relative pointers to __Protocol Conformance Descriptors__ (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L2773-L2784). Each of these point to the __TEXT.__const section.
 
 ```
-  /// The protocol being conformed to.
+  /// The Protocol Descriptor being conformed to.
   TargetRelativeContextPointer<Runtime, TargetProtocolDescriptor> Protocol;
   
   // Some description of the type that conforms to the protocol.
@@ -85,6 +85,52 @@ type ProtocolConformanceDescriptor struct {
     ConformanceFlags      uint32
 }
 ```
+
+Now, before we continue... What are `typeRef` (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataRef.h#L330-L349) and `WitnessTable`?
+
+TypeRef can be thought as a union that contains a type for every type scenario that can be possible in the Swift execution runtime. In any case, it'll be a __relative pointer__ which for our use case we'll see it as a int32.
+
+```
+struct TargetTypeReference {
+  union {
+    /// A direct reference to a TypeContextDescriptor or ProtocolDescriptor.
+    RelativeDirectPointer<TargetContextDescriptor<Runtime>>
+      DirectTypeDescriptor;
+
+    /// An indirect reference to a TypeContextDescriptor or ProtocolDescriptor.
+    RelativeDirectPointer<
+        TargetSignedPointer<Runtime, TargetContextDescriptor<Runtime> * __ptrauth_swift_type_descriptor>>
+      IndirectTypeDescriptor;
+
+    /// An indirect reference to an Objective-C class.
+    RelativeDirectPointer<
+        ConstTargetMetadataPointer<Runtime, TargetClassMetadataType>>
+      IndirectObjCClass;
+
+    /// A direct reference to an Objective-C class name.
+    RelativeDirectPointer<const char>
+      DirectObjCClassName;
+  };
+```
+
+As for the Witness Table (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L1804-L1809):
+
+```
+template <typename Runtime>
+class TargetWitnessTable {
+  /// The protocol conformance descriptor from which this witness table
+  /// was generated.
+  ConstTargetMetadataPointer<Runtime, TargetProtocolConformanceDescriptor>
+    Description;
+
+public:
+  const TargetProtocolConformanceDescriptor<Runtime> *getDescription() const {
+    return Description;
+  }
+};
+```
+
+
 
 - `__TEXT.__swift5_types`
 - `__TEXT.__const`
