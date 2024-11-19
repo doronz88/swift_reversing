@@ -11,7 +11,7 @@ The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occuren
 
 ## Swift segments
 
-Before continuing, I want to mention Scott Knight for the amazing work as most of this info is taken from him backed by my research.
+Before continuing, I want to mention Scott Knight for the amazing work as most of this info is taken from him backed by my research. Last but not least, Blacktop with his amazing parsing implementation of Swift binaries (https://github.com/blacktop/go-macho/blob/master/swift.go).
 
 One of the most important ideas introduced in Swift was the use of `relative pointers`. This idea enables these pointers not to be rebased thus improving efficiency. (https://github.com/swiftlang/swift/blob/main/include/swift/Basic/RelativePointer.h). As stated:
 
@@ -22,7 +22,7 @@ Some data structures emitted by the Swift compiler use relative indirect address
 These relative pointers make use of int32 types (instead of 8 bytes which would be the traditional pointer!). As a simple pseudocode, you can think of an offset like this:
 
 ```
-dstAddress = currentAddress + (int32)offset 
+dstAddress = ptr_auth(currentAddress + (int32)offset)
 ```
 
 When analyzing a binary that makes use of the Swift runtime, you will be able to find lots of swift5_* segments. These segments (together with __const) provide Swift with all it needs. 
@@ -32,8 +32,60 @@ Following, you'll see a description of those:
 > **NOTE:** It is possible that not all of them are specified here. If you find one that it is not, please open an issue. This guide is WIP :)
 
 
-- `__TEXT.__swift5_protos`
-- `__TEXT.__swift5_proto`
+- `__TEXT.__swift5_protos`: Contains a list of relative pointers that each of them point to a __Protocol Descriptor__. These pointers point to `__TEXT.__const`.
+
+The implementation of each __Protocol Descriptor__ can be found at: https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L3193-L3241. The structure of a __Protocol Descriptor__ is:
+
+```
+type ProtocolDescriptor struct {
+    Flags                      uint32
+    Parent                     int32
+    Name                       int32
+    NumRequirementsInSignature uint32
+    NumRequirements            uint32
+    AssociatedTypeNames        int32
+}
+```
+Or, to be more specific with Swift types:
+
+```
+type ProtocolDescriptor struct {
+    Flags                      ContextDescriptorFlags 
+    Parent                     TargetRelativeContextPointer 
+    Name                       TargetRelativeDirectPointer
+    NumRequirementsInSignature uint32
+    NumRequirements            uint32
+    AssociatedTypeNames        RelativeDirectPointer
+}
+```
+
+- `__TEXT.__swift5_proto`: This section is a list of relative pointers to __Protocol Conformance Descriptors__ (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L2773-L2784). Each of these point to the __TEXT.__const section.
+
+```
+  /// The protocol being conformed to.
+  TargetRelativeContextPointer<Runtime, TargetProtocolDescriptor> Protocol;
+  
+  // Some description of the type that conforms to the protocol.
+  TargetTypeReference<Runtime> TypeRef;
+
+  /// The witness table pattern, which may also serve as the witness table.
+  RelativeDirectPointer<const TargetWitnessTable<Runtime>> WitnessTablePattern;
+
+  /// Various flags, including the kind of conformance.
+  ConformanceFlags Flags;
+```
+
+Which can be understood as:
+
+```
+type ProtocolConformanceDescriptor struct {
+    ProtocolDescriptor    int32 //relative ptr
+    NominalTypeDescriptor int32 //relative ptr
+    ProtocolWitnessTable  int32 //relative ptr
+    ConformanceFlags      uint32
+}
+```
+
 - `__TEXT.__swift5_types`
 - `__TEXT.__const`
 - `__TEXT.__swift5_fieldmd`
