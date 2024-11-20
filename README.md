@@ -175,10 +175,27 @@ type ClassDescriptor struct {
 The reader is encouraged to find the types of __TargetExtensionContextDescriptor__, __TargetAnonymousContextDescriptor__, __TargetOpaqueTypeDescriptor__.
 
 - `__TEXT.__swift5_fieldmd`
-- `__TEXT.__swift5_assocty`
-- `__TEXT.__swift5_builtin`
-- `__TEXT.__swift5_reflstr`  
 
+(Taken from Scott Knight research)
+
+This section contains an array of field descriptors. A field descriptor contains a collection of field records for a single class, struct or enum declaration. Each field descriptor can be a different length depending on how many field records the type contains.
+
+```
+type FieldRecord struct {
+    Flags           uint32
+    MangledTypeName int32
+    FieldName       int32
+}
+
+type FieldDescriptor struct {
+    MangledTypeName int32
+    Superclass      int32
+    Kind            uint16
+    FieldRecordSize uint16
+    NumFields       uint32
+    FieldRecords    []FieldRecord
+}
+```
 
 ## Primitive types
 
@@ -333,3 +350,5 @@ If the user raised an error explicitly, it will instead use `swift_allocError()`
 - <https://hex-rays.com/blog/igors-tip-of-the-week-51-custom-calling-conventions/>
 - <https://www.swift.org/documentation/>
 - <https://github.com/apple/swift/blob/main/docs/ABI/>
+- <https://github.com/blacktop/go-macho/blob/master/swift.go/>
+- <https://knight.sc/reverse%20engineering/2019/07/17/swift-metadata.html/>
