@@ -11,7 +11,7 @@ The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occuren
 
 ## Swift segments
 
-Before continuing, I want to mention Scott Knight for the amazing work as most of this info is taken from him backed by my research. Last but not least, Blacktop with his amazing parsing implementation of Swift binaries (https://github.com/blacktop/go-macho/blob/master/swift.go).
+Before continuing, I want to mention Scott Knight (https://knight.sc/reverse%20engineering/2019/07/17/swift-metadata.html) for the amazing work as most of this info is taken from him backed by my research. Last but not least, Blacktop with his amazing parsing implementation of Swift binaries (https://github.com/blacktop/go-macho/blob/master/swift.go).
 
 One of the most important ideas introduced in Swift was the use of `relative pointers`. This idea enables these pointers not to be rebased thus improving efficiency. (https://github.com/swiftlang/swift/blob/main/include/swift/Basic/RelativePointer.h). As stated:
 
@@ -113,7 +113,7 @@ struct TargetTypeReference {
   };
 ```
 
-As for the Witness Table (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L1804-L1809):
+As for the Witness Table (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L1804-L1809). For a brief introduction on what those are (https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method):
 
 ```
 template <typename Runtime>
@@ -130,10 +130,50 @@ public:
 };
 ```
 
-
-
 - `__TEXT.__swift5_types`
-- `__TEXT.__const`
+
+Types can take many forms (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L4840-L4872) that are resolved in runtime. Thus, even if the structs are __the same size__ they mean different things which means there isn't a unique solution for parsing this segment.
+
+(Again, thanks Scott Knight for your work, this is directly taken from his research)
+
+```
+type EnumDescriptor struct {
+    Flags                               uint32
+    Parent                              int32
+    Name                                int32
+    AccessFunction                      int32
+    FieldDescriptor                     int32
+    NumPayloadCasesAndPayloadSizeOffset uint32
+    NumEmptyCases                       uint32
+}
+
+type StructDescriptor struct {
+    Flags                   uint32
+    Parent                  int32
+    Name                    int32
+    AccessFunction          int32
+    FieldDescriptor         int32
+    NumFields               uint32
+    FieldOffsetVectorOffset uint32
+}
+
+type ClassDescriptor struct {
+    Flags                       uint32
+    Parent                      int32
+    Name                        int32
+    AccessFunction              int32
+    FieldDescriptor             int32
+    SuperclassType              int32
+    MetadataNegativeSizeInWords uint32
+    MetadataPositiveSizeInWords uint32
+    NumImmediateMembers         uint32
+    NumFields                   uint32
+}
+
+```
+
+The reader is encouraged to find the types of __TargetExtensionContextDescriptor__, __TargetAnonymousContextDescriptor__, __TargetOpaqueTypeDescriptor__.
+
 - `__TEXT.__swift5_fieldmd`
 - `__TEXT.__swift5_assocty`
 - `__TEXT.__swift5_builtin`
