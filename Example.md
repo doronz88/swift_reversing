@@ -113,6 +113,12 @@ type AssociatedTypeDescriptor struct {
 ![screenshot](media/assocty.png)    
 
 
+## Reversing Action.invoke
+
+Now that we have more or less prepared the binary with the appropiate renaming and redefinition of some segments, the work to do will be much easier.
+
+To begin with, naviagate to `static Action.invoke(usingContentsOf:)(__int64 a1, char* a2, __int64 a3)`. If you are like me who has a "strong" background reversing ObjC first thing to note is the absence of selector. ObjC invocation involves passing messages and Swift is nothing like that so be ready to read it properly.
+
 
 
 
