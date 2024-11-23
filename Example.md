@@ -52,13 +52,16 @@ To recall:
 
 0x3000c0 - flags 
 
-Now, as you'll probably have seen, the structure is bigger than 4 words. That is because the witness table is defined as a trailing object. And we can know that because the flags tell us that this is the case. In case you're curious, these are what those flags indicate (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataValues.h#L692-L715). 
+Now, as you'll probably have seen, the structure is bigger than 4 words. That is because the structure contains trailing objects. And we can know that because the flags tell us that this is the case. In case you're curious, these are what those flags indicate (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataValues.h#L692-L715). 
 
 > **NOTE:** Blacktop has done an amazing job parsing this. If you want to follow along with real code, head to his repository and look for the readProtocolConformance function.
 
+0x300c0 correspond to:
 
 `HasGenericWitnessTableMask = 0x01u << 17`
+
 `HasResilientWitnessesMask = 0x01u << 16`
+
 `IsRetroactiveMask = 0x01u << 16`
 
 ![screenshot](media/proto_parsed.png)
@@ -85,10 +88,12 @@ struct GenericWitnessTable {
 
 ![screenshot](media/pcd_renamed.png)
 
----
+Do it with all Protocol Conformance Descriptors before proceeding. 
+
+__Once you're done, time to parse swift5_assocty segment.__
 
 
-Now, we'll go to swift5_assocty to redefine it. This segment is an array of associated type descriptors. An associated type descriptor contains a collection of associated type records for a conformance. An associated type records describe the mapping from an associated type to the type witness of a conformance.
+Now, we'll go to swift5_assocty segment (remember, you can do it from the Segments option in IDA) to redefine it. This segment is an array of associated type descriptors. An associated type descriptor contains a collection of associated type records for a conformance. An associated type records describe the mapping from an associated type to the type witness of a conformance.
 
 ```
 type AssociatedTypeRecord struct {
