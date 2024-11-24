@@ -319,8 +319,6 @@ protocol SomeProtocol {
 
 When defining properties for protocols, what we are really doing is establishing the __Property Requirements__ for the protocol. These will be the __type, name and also specify whether each property must be gettable or gettable and settable__.
 
-__TODO: ADD HERE A PROTOCOL DESCRIPTOR FROM IDA GOING THROUGH THE PROPERTIES SHOWING HOW THIS CAN BE SEEN__
-
 For example, here we can see a protocol and a class that conforms to that protocol (__note that both have to have the same name and type of the property__):
 
 ```
@@ -346,7 +344,37 @@ protocol RandomNumberGenerator {
 
 Note that the class that __conforms__ to this protocol has no obligations regarding to how the random() is computed, efficiency, how random is that number or whether Double type can be from 0.0 to 1.0 or -50.0 to 50.0. It's a mere specification of the function name and the return type.
 
-__TODO: ADD HERE A PROTOCOL DESCRIPTOR FROM IDA GOING THROUGH THE METHODS TO SHOW HOW THIS CAN BE SEEN__
+As stated earlier, protocols can be found at `swift5_protos`section as a list of __relative pointers__ to __const section. Within them, you'll be able to find the raw bytes of what we've just described.
+
+```
+type TargetProtocolDescriptor struct {
+	TargetContextDescriptor
+	NameOffset                 RelativeDirectPointer // The name of the protocol.
+	NumRequirementsInSignature uint32                // The number of generic requirements in the requirement signature of the protocol.
+	NumRequirements            uint32                /* The number of requirements in the protocol. If any requirements beyond MinimumWitnessTableSizeInWords are present
+	 * in the witness table template, they will be not be overwritten with defaults. */
+	AssociatedTypeNamesOffset RelativeDirectPointer // Associated type names, as a space-separated list in the same order as the requirements.
+}
+```
+
+After that definition, you'll encounter the list of generic signature requirements (determined by the __NumRequirementsInSignature__) and after that, the __requirement__ list of size __NumRequirements__. 
+
+Here are the structures that define both of them:
+
+```
+type TargetGenericRequirementDescriptor struct {
+	Flags                                  GenericRequirementFlags
+	ParamOff                               RelativeDirectPointer
+	TypeOrProtocolOrConformanceOrLayoutOff RelativeIndirectablePointer 
+}
+```
+
+```
+type TargetProtocolRequirement struct {
+	Flags                 ProtocolRequirementFlags
+	DefaultImplementation RelativeDirectPointer // The optional default implementation of the protocol.
+}
+```
 
 
 ## Type metadata
