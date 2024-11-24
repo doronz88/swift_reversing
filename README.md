@@ -11,6 +11,9 @@ The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occuren
 
 ## Swift segments
 
+__NOTE: Read this https://github.com/swiftlang/swift/blob/main/docs/Lexicon.md before starting with this section__
+
+
 Before continuing, I want to mention Scott Knight (https://knight.sc/reverse%20engineering/2019/07/17/swift-metadata.html) for the amazing work as most of this info is taken from him backed by my research. Last but not least, Blacktop with his amazing parsing implementation of Swift binaries (https://github.com/blacktop/go-macho/blob/master/swift.go).
 
 One of the most important ideas introduced in Swift was the use of `relative pointers`. This idea enables these pointers not to be rebased thus improving efficiency. (https://github.com/swiftlang/swift/blob/main/include/swift/Basic/RelativePointer.h). As stated:
@@ -32,9 +35,9 @@ Following, you'll see a description of those:
 > **NOTE:** It is possible that not all of them are specified here. If you find one that it is not, please open an issue. This guide is WIP :)
 
 
-- `__TEXT.__swift5_protos`: Contains a list of relative pointers that each of them point to a __Protocol Descriptor__. These pointers point to `__TEXT.__const`.
+- `__TEXT.__swift5_protos`: Contains a list of relative pointers that each of them point to a __Protocol Descriptor__. Each of them consist of what we know as a __Swift Protocol__. These pointers point to `__TEXT.__const`.
 
-The implementation of each __Protocol Descriptor__ can be found at: https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L3193-L3241. The structure of a __Protocol Descriptor__ is:
+The implementation of each __Protocol Descriptor (Swift Protocol)__ can be found at: https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L3193-L3241 (more on this later when we dig deep into the Swift Protocols). The structure of a __Protocol Descriptor__ is:
 
 ```
 type ProtocolDescriptor struct {
@@ -284,6 +287,67 @@ struct SomeClass {
 ```
 
 Getters and setters on the other hand, aren't represented their and are compiled as they would in C++ - normal global functions getting their `self` objects from `X20`.
+
+## Swift Protocols
+
+Swift Protocols are mere interfaces that define how a type has to be adapted to __conform__ to a protocol. You can think a protocol like rules that the type has to comply with. As we saw earlier, these can be found in `swift5_protos`.
+
+Apple states that (https://docs.swift.org/swift-book/documentation/the-swift-programming-language/protocols/): 
+
+```
+A protocol defines a blueprint of methods, properties, and other requirements that suit a particular task or piece of functionality. The protocol can then be adopted by a class, structure, or enumeration to provide an actual implementation of those requirements. Any type that satisfies the requirements of a protocol is said to conform to that protocol.
+```
+
+Note that types can have multiple __conforming__ protocols. These are marked like this:
+
+```
+struct SomeStructure: FirstProtocol, AnotherProtocol {
+    // structure definition goes here
+}
+```
+
+Once we understood that, we have to understand what can be defined in a protocol. Protocols can have properties and methods. 
+
+For instance, here we have a protocol that have only properties:
+
+```
+protocol SomeProtocol {
+    var mustBeSettable: Int { get set }
+    var doesNotNeedToBeSettable: Int { get }
+}
+```
+
+When defining properties for protocols, what we are really doing is establishing the __Property Requirements__ for the protocol. These will be the __type, name and also specify whether each property must be gettable or gettable and settable__.
+
+__TODO: ADD HERE A PROTOCOL DESCRIPTOR FROM IDA GOING THROUGH THE PROPERTIES SHOWING HOW THIS CAN BE SEEN__
+
+For example, here we can see a protocol and a class that conforms to that protocol (__note that both have to have the same name and type of the property__):
+
+```
+protocol FullyNamed {
+    var fullName: String { get }
+}
+
+struct Person: FullyNamed {
+    var fullName: String
+}
+let john = Person(fullName: "John Appleseed")
+// john.fullName is "John Appleseed"
+
+```
+
+Protocols can also define methods. As previously with the properties, we'll also need to define __Method requirements__. For example, in the following protocol we will be defining a protocol with a single method that has to return a Double type:
+
+```
+protocol RandomNumberGenerator {
+    func random() -> Double
+}
+```
+
+Note that the class that __conforms__ to this protocol has no obligations regarding to how the random() is computed, efficiency, how random is that number or whether Double type can be from 0.0 to 1.0 or -50.0 to 50.0. It's a mere specification of the function name and the return type.
+
+__TODO: ADD HERE A PROTOCOL DESCRIPTOR FROM IDA GOING THROUGH THE METHODS TO SHOW HOW THIS CAN BE SEEN__
+
 
 ## Type metadata
 
