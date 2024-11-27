@@ -66,7 +66,7 @@ type ProtocolDescriptor struct {
 
 ```
   /// The Protocol Descriptor being conformed to.
-  TargetRelativeContextPointer<Runtime, TargetProtocolDescriptor> Protocol;
+  TargetRelativeContextPointer<Runtime, TargetProtocolDescriptor> Protocol; 
   
   // Some description of the type that conforms to the protocol.
   TargetTypeReference<Runtime> TypeRef;
@@ -88,35 +88,13 @@ type ProtocolConformanceDescriptor struct {
     ConformanceFlags      uint32
 }
 ```
+> **NOTE:** Note that the Protocol Descriptor is the protocol they __conform__ to. That is why this is located at the `Protocol Conformance Descriptors` segment.
 
 Now, before we continue... What are `typeRef` (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataRef.h#L330-L349) and `WitnessTable`?
 
-TypeRef can be thought as a union that contains a type for every type scenario that can be possible in the Swift execution runtime. In any case, it'll be a __relative pointer__ which for our use case we'll see it as a int32.
+TypeRef -> __IMPROVE EXPLANATION OF THIS PART. THIS IS NOT CLEAR (removed previous one)__
 
-```
-struct TargetTypeReference {
-  union {
-    /// A direct reference to a TypeContextDescriptor or ProtocolDescriptor.
-    RelativeDirectPointer<TargetContextDescriptor<Runtime>>
-      DirectTypeDescriptor;
-
-    /// An indirect reference to a TypeContextDescriptor or ProtocolDescriptor.
-    RelativeDirectPointer<
-        TargetSignedPointer<Runtime, TargetContextDescriptor<Runtime> * __ptrauth_swift_type_descriptor>>
-      IndirectTypeDescriptor;
-
-    /// An indirect reference to an Objective-C class.
-    RelativeDirectPointer<
-        ConstTargetMetadataPointer<Runtime, TargetClassMetadataType>>
-      IndirectObjCClass;
-
-    /// A direct reference to an Objective-C class name.
-    RelativeDirectPointer<const char>
-      DirectObjCClassName;
-  };
-```
-
-As for the Witness Table (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L1804-L1809). For a brief introduction on what those are (https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method):
+The Witness Table (__TAKE THIS WAAAAAAAY FURTHER__) (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L1804-L1809). For a brief introduction on what those are (https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method):
 
 ```
 template <typename Runtime>
@@ -376,6 +354,47 @@ type TargetProtocolRequirement struct {
 }
 ```
 
+Once protocols are defined, classes can __conform__ to them. There may be cases in which default implementations want to be provided. That is why __protocol extensions__ exist. We can create a protocol and afterwards, define an extension for it. Following the previous example:
+
+```
+protocol RandomNumberGenerator {
+    func random() -> Double
+}
+
+extension RandomNumberGenerator {
+  func random() {
+    return 1.0
+  }
+}
+```
+
+So, unless if the conforming class provides their own implementation of `random()`, `1.0` will be returned when called.
+
+__TODO: EXPLAIN GENERIC PROTOCOLS__
+
+## Witness tables
+
+__TODO__
+
+## Protocol conformance descriptors
+
+Protocol conformances are the act of a class, struct, or enum adopting and implementing the requirements specified by a protocol.
+
+```
+protocol MyProtocol {
+ // protocol requirements
+  func myMethod() 
+}
+
+class MyClass: MyProtocol { 
+  func myMethod() {
+     print("implementation")
+  }
+}
+```
+> **NOTE:** Remember that a class, enum or struct can __conform__ to more than one Protocol.
+
+So, yes, you are right, we'll find them referenced at `swift5_proto` as a list of relative pointers.
 
 ## Type metadata
 
