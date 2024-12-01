@@ -6,7 +6,7 @@ For this example, we will reverse the CoreDeviceAction framework contained in th
 
 We'll first begin by loading the binary into IDA. Once loaded, we'll go into the Segments section.
 
-Once there, navigate to `swift5_proto`. Recall from the README.md that this segment contains a list of relative pointers to __Protocol Conformance Descriptor(s)__ (which will point to the __const segment). This the structure of a single Protocol Conformance Descriptor:
+Once there, navigate to `swift5_proto`. Recall from the README.md that this segment contains a list of relative pointers to __Protocol Conformance Descriptor(s)__ (which will point to the __const segment). This the structure of a single Protocol Conformance Descriptor (these are contain the __types that conform to a protocol__, for instance, a class/enum/struct):
 
 ```
   /// The Protocol Descriptor being conformed to.
@@ -44,13 +44,15 @@ If you fix the first 4 double words and convert them accordingly:
 
 To recall:
 
-`off_28B10` is the relative pointer to the `Protocol Descriptor`.
+```
+`off_28B10` is the relative pointer to the `Protocol Descriptor`. Which, if we double click, it points to the protocol descriptor for _HasCustomAnyHashableRepresentation.
 
 `$s3__C19ProgressUserInfoKeyVMn` is the type reference. The nominal type descriptor.
 
-0 - in this case there is not a witness table defined (more on this later)
+0 - in this case there is not a witness table defined (more on this later). In this case this type will only implement the functions that protocol obligue to.
 
 0x3000c0 - flags 
+```
 
 Now, as you'll probably have seen, the structure is bigger than 4 words. That is because the structure contains trailing objects. And we can know that because the flags tell us that this is the case. In case you're curious, these are what those flags indicate (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataValues.h#L692-L715). 
 
@@ -69,13 +71,29 @@ Now, as you'll probably have seen, the structure is bigger than 4 words. That is
 
 The first double word we will encounter is the __Retroactive__ string. 
 
-The second double word we will encounter is the __NumWitnesses__ (remember, flags tell us it is Resilient).
+The second double word we will encounter is the __NumWitnesses__ (remember, flags tell us it is Resilient). That will tell us how many method requriements are for the __Protocol Descriptor__.
+
+Therefore, what follows, are the method implemetations that the __Protocol Descriptor__ obligue to.
 
 The following double words will depend on the NumWitnesses size as it'll contain an array of RelativeWitness(es). (think it as RelativeWitnessSize/NumWitnesses).
 
-Each RelativeWitness has a size of 2 int32. Each of them being `ImplOff/RequirementOff` and `Symbol/Requirement`.
+Each RelativeWitness has a size of 2 int32. Each of them being `ImplOff/RequirementOff` and `Symbol/Requirement` (the method requirement and the implementation).
 
-After that, those RelativeWitnesses, the GenericWitnessTable will appear. The contents are the following:
+For instance:
+
+![screenshot](media/pcd_renamed.png)
+
+```
+off_28b48 points to the base conformance descriptor for _SwiftNewTypeWrapper: RawRepresentable 
+
+unk_243c3 points to typeref section. which contains the associated_conformance_So21NSProgressUserInfoKeyas20_SwiftNewtypeWrapperSCSY (which contians the func ptr to the function implementation)
+
+off_28b50 points to the base conformance descriptor for _SwiftNewtypeWrapper: _HasCustomAnyHashableRepresentation
+
+unk_243cb points to the associated_conformance_So21NSProgressInfoKeyas20_SwiftNewTypeWrapperSCs35_HasCustomAnyHashableRepresentation
+```
+
+After those RelativeWitnesses, the GenericWitnessTable will appear. The contents are the following:
 
 ```
 struct GenericWitnessTable {
@@ -117,7 +135,11 @@ type AssociatedTypeDescriptor struct {
 
 Now that we have more or less prepared the binary with the appropiate renaming and redefinition of some segments, the work to do will be much easier.
 
-To begin with, naviagate to `static Action.invoke(usingContentsOf:)(__int64 a1, char* a2, __int64 a3)`. If you are like me who has a "strong" background reversing ObjC first thing to note is the absence of selector. ObjC invocation involves passing messages and Swift is nothing like that so be ready to read it properly.
+To begin with, naviagate to `static Action.invoke(usingContentsOf:)(__int64 a1, char* a2, __int64 a3)`. If you are like me who has a "strong" background reversing ObjC first thing to note is the absence of selector. ObjC invocation involves passing messages and Swift is nothing like that so be ready to read it properly. 
+
+The first question that might come to your mind might be: __Where is this defined in the binary?__
+
+Action is a __Protocol Descriptor__ that defines several method and property requirements. In the case of __invoke__ function it is defined as a method requirement but it seems like in this implementation it provides one by default if the __type that conforms to it__ does not reimplement it (this can be done by using __Extensions__). So, if you look for X-references, you'll end up in the Protocol Descriptor definition.
 
 
 
