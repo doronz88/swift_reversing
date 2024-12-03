@@ -13,9 +13,6 @@ The script adds the `Ctrl+5` HotKey to quickly parse the `Swift::String` occuren
 
 __NOTE: Read this https://github.com/swiftlang/swift/blob/main/docs/Lexicon.md before starting with this section__
 
-
-Before continuing, I want to mention Scott Knight (https://knight.sc/reverse%20engineering/2019/07/17/swift-metadata.html) for the amazing work as most of this info is taken from him backed by my research. Last but not least, Blacktop with his amazing parsing implementation of Swift binaries (https://github.com/blacktop/go-macho/blob/master/swift.go).
-
 One of the most important ideas introduced in Swift was the use of `relative pointers`. This idea enables these pointers not to be rebased thus improving efficiency. (https://github.com/swiftlang/swift/blob/main/include/swift/Basic/RelativePointer.h). As stated:
 
 ```
@@ -247,7 +244,7 @@ Getters and setters on the other hand, aren't represented their and are compiled
 
 Swift Protocols are mere interfaces that define how a type has to be adapted to __conform__ to a protocol. You can think a protocol like rules that the type has to comply with. As we saw earlier, these can be found in `swift5_protos`.
 
-Apple states that (https://docs.swift.org/swift-book/documentation/the-swift-programming-language/protocols/): 
+Apple states that: 
 
 ```
 A protocol defines a blueprint of methods, properties, and other requirements that suit a particular task or piece of functionality. The protocol can then be adopted by a class, structure, or enumeration to provide an actual implementation of those requirements. Any type that satisfies the requirements of a protocol is said to conform to that protocol.
@@ -349,7 +346,6 @@ So, unless if the conforming class provides their own implementation of `random(
 
 
 ## Witness tables
-(https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method)
 
 Protocols allow developers to add polymorphism to types through composition, even to value types like structs or enums. Protocol methods are dispatched via Protocol Witness Tables.
 
@@ -446,3 +442,6 @@ If the user raised an error explicitly, it will instead use `swift_allocError()`
 - <https://github.com/apple/swift/blob/main/docs/ABI/>
 - <https://github.com/blacktop/go-macho/blob/master/swift.go/>
 - <https://knight.sc/reverse%20engineering/2019/07/17/swift-metadata.html/>
+- https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method
+- https://docs.swift.org/swift-book/documentation/the-swift-programming-language/protocols/
+- https://knight.sc/reverse%20engineering/2019/07/17/swift-metadata.html
