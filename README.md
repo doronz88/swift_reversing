@@ -86,7 +86,7 @@ type ProtocolConformanceDescriptor struct {
     ConformanceFlags      uint32
 }
 ```
-> **NOTE:** Note that the Protocol Descriptor is the protocol they __conform__ to. That is why this is located at the `Protocol Conformance Descriptors` segment.
+> **NOTE:** Note that the Protocol Descriptor is the protocol they __conform__ to.
 
 - `__TEXT.__swift5_types`
 
