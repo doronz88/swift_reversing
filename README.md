@@ -32,8 +32,6 @@ When analyzing a binary that makes use of the Swift runtime, you will be able to
 
 Following, you'll see a description of those:
 
-> **NOTE:** It is possible that not all of them are specified here. If you find one that it is not, please open an issue. This guide is WIP :)
-
 
 - `__TEXT.__swift5_protos`: Contains a list of relative pointers that each of them point to a __Protocol Descriptor__. Each of them consist of what we know as a __Swift Protocol__. These pointers point to `__TEXT.__const`.
 
@@ -89,27 +87,6 @@ type ProtocolConformanceDescriptor struct {
 }
 ```
 > **NOTE:** Note that the Protocol Descriptor is the protocol they __conform__ to. That is why this is located at the `Protocol Conformance Descriptors` segment.
-
-Now, before we continue... What are `typeRef` (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/MetadataRef.h#L330-L349) and `WitnessTable`?
-
-TypeRef -> __IMPROVE EXPLANATION OF THIS PART. THIS IS NOT CLEAR (removed previous one)__
-
-The Witness Table (__TAKE THIS WAAAAAAAY FURTHER__) (https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L1804-L1809). For a brief introduction on what those are (https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method):
-
-```
-template <typename Runtime>
-class TargetWitnessTable {
-  /// The protocol conformance descriptor from which this witness table
-  /// was generated.
-  ConstTargetMetadataPointer<Runtime, TargetProtocolConformanceDescriptor>
-    Description;
-
-public:
-  const TargetProtocolConformanceDescriptor<Runtime> *getDescription() const {
-    return Description;
-  }
-};
-```
 
 - `__TEXT.__swift5_types`
 
@@ -322,7 +299,7 @@ protocol RandomNumberGenerator {
 
 Note that the class that __conforms__ to this protocol has no obligations regarding to how the random() is computed, efficiency, how random is that number or whether Double type can be from 0.0 to 1.0 or -50.0 to 50.0. It's a mere specification of the function name and the return type.
 
-As stated earlier, protocols can be found at `swift5_protos`section as a list of __relative pointers__ to __const section. Within them, you'll be able to find the raw bytes of what we've just described.
+As stated earlier, protocols can be found at `swift5_protos` section as a list of __relative pointers__ to __const section. Within them, you'll be able to find the raw bytes of what we've just described.
 
 ```
 type TargetProtocolDescriptor struct {
@@ -370,11 +347,17 @@ extension RandomNumberGenerator {
 
 So, unless if the conforming class provides their own implementation of `random()`, `1.0` will be returned when called.
 
-__TODO: EXPLAIN GENERIC PROTOCOLS__
 
 ## Witness tables
+(https://blog.jacobstechtavern.com/p/compiler-cocaine-the-swift-method)
 
-__TODO__
+Protocols allow developers to add polymorphism to types through composition, even to value types like structs or enums. Protocol methods are dispatched via Protocol Witness Tables.
+
+The mechanism for these is the same as virtual tables: Protocol-conforming types contain metadata (stored in an existential container*), which includes a pointer to their witness table, which is itself a table of function pointers. 
+
+When executing a function on a protocol type, Swift inspects the existential container, looks up the witness table, and dispatches to the memory address of the function to execute. 
+
+For example, we may see a situation in which we'll iterate over a list of types that conform to a protocol. Because we won't know at compile time which will be the method to be called, this will have to be dispatched via the PWT (Protocol Witness Tables).
 
 ## Protocol conformance descriptors
 
