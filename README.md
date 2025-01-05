@@ -36,9 +36,12 @@ dstAddress = ptr_auth(currentAddress + (int32)offset)
 When analyzing a binary that makes use of the Swift runtime, you will be able to find lots of `swift5_*` segments.
 These segments (together with `__const`) provide Swift with all it needs.
 
-Following, you'll see a description of those:
+Following, you'll see a description of those.
 
-- `__TEXT.__swift5_protos`: Contains a list of relative pointers that each of them point to a **Protocol Descriptor**.
+### `__TEXT.__swift5_protos`
+
+Contains a list of relative pointers that each of them point to a **Protocol Descriptor**.
+
   Each of them consist of what we know as a **Swift Protocol**. These pointers point to `__TEXT.__const`.
 
   The implementation of each **Protocol Descriptor (Swift Protocol)** can be found at: <https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L3193-L3241> (more on this later when we dig deep into the Swift Protocols). The structure of a **Protocol Descriptor** is:
@@ -67,7 +70,9 @@ Following, you'll see a description of those:
   }
   ```
 
-- `__TEXT.__swift5_proto`: This section is a list of relative pointers to **Protocol Conformance Descriptors** (<https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L2773-L2784>).
+### `__TEXT.__swift5_proto`
+
+This section is a list of relative pointers to **Protocol Conformance Descriptors** (<https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L2773-L2784>).
   Each of these point to the `__TEXT.__const` section. A script to parse this sectio can be found in: <https://github.com/doronz88/ida-scripts/blob/main/fix_proto_conf_desc.py>.
 
   ```c
@@ -97,7 +102,7 @@ Following, you'll see a description of those:
 
   > **NOTE:** Protocol Descriptor is the protocol they **conform** to.
 
-- `__TEXT.__swift5_types`
+### `__TEXT.__swift5_types`
 
   Types can take many forms (<https://github.com/swiftlang/swift/blob/main/include/swift/ABI/Metadata.h#L4840-L4872>) that are resolved in runtime.
   Thus, even if the structs are **the same size** they mean different things which means there isn't a unique solution for parsing this segment.
@@ -141,7 +146,44 @@ Following, you'll see a description of those:
 
   The reader is encouraged to find the types of **TargetExtensionContextDescriptor**, **TargetAnonymousContextDescriptor**, **TargetOpaqueTypeDescriptor**.
 
-- `__TEXT.__swift5_fieldmd`
+### `__TEXT.__swift5_typeref`
+
+This section contains the symbolic references needed by the runtime to perform instantiations and reflections. 
+
+For instance, the first argument of methods such as `swift_instantiateConcreteTypeFromMangledName` (which will return the metadata) will point to the `__data` section which will contain a relative pointer to the `swift5_typeref` section. 
+
+These symbolic references follow a pattern. From our research, we found in Swift docs that depending on the first byte of the symbolic reference what we find has different meanings. 
+
+Because a type can contain other types (imagine an array of elements - you have the ContiguousArray type and what is being contained), when we see a symbolic reference definition we may see concatenated references.
+
+__NOTE: THIS IS WIP, SOME STUFF MAY BE INACCURATE OR HAS MISSING INFO__
+
+(usually we'll see a symbol name referencing the first byte of the symbolic reference which will make our lifes easier when parsing with an ida-script)
+
+```
+switch(first_byte):
+  case 0x01:
+    Direct reference to a context type descriptor
+    1 byte - type (0x01)
+    4 bytes - relative pointer
+    1 byte - if value 0x79 it means the symbolic reference is not finished. If it is 0x47 or 0 it means the symbolic reference is complete and no further parsing is needed.
+
+  case 0x02:
+    Indirect reference to a context type descriptor
+    1 byte - type (0x02)
+    4 bytes - relative pointer
+    1 byte - if value 0x79 it means the symbolic reference is not finished. If it is 0x47 or 0 it means the symbolic reference is complete and no further parsing is needed.
+
+  case 0xFF: 
+    1 byte - type (0xFF)
+    1 byte - usually with value 7 but don't know what is that
+    4 bytes - relative pointer to the metadata access function
+
+```
+
+  > **NOTE:** We don't know what __0x53__ type is. If anyone has any idea, please feel free to add it. We know that are more types but atm we'll leave it like this.
+
+### `__TEXT.__swift5_fieldmd`
 
   (Taken from Scott Knight research)
 
@@ -361,6 +403,8 @@ So, unless if the conforming class provides their own implementation of `random(
 
 ## Witness tables
 
+### Protocol Witness Tables
+
 Protocols allow developers to add polymorphism to types through composition, even to value types like structs or enums. Protocol methods are dispatched via Protocol Witness Tables.
 
 The mechanism for these is the same as virtual tables: Protocol-conforming types contain metadata (stored in an existential container*), which includes a pointer to their witness table, which is itself a table of function pointers.
@@ -368,6 +412,175 @@ The mechanism for these is the same as virtual tables: Protocol-conforming types
 When executing a function on a protocol type, Swift inspects the existential container, looks up the witness table, and dispatches to the memory address of the function to execute.
 
 For example, we may see a situation in which we'll iterate over a list of types that conform to a protocol. Because we won't know at compile time which will be the method to be called, this will have to be dispatched via the PWT (Protocol Witness Tables).
+
+### Value Witness Tables
+
+Defines the functions to interact with the type. These functions are defined:
+
+```
+initializeBufferWithCopyOfBuffer
+destroy
+initializeWithCopy
+assignWithCopy
+initializeWithTake
+assignWwithTake
+getEnumTagSinglePayload
+storeEnumTagSinglePayload
+```
+
+These functions are needed to interact with the ValueBuffer that's inside the `Existential Container`.
+
+## Existential containers
+
+When a function or an array (or whatever) needs an argument that adheres to a protocol, Swift needs to adapt stuff to make sure that the argument has the same size regardless of what's passed. Remember that even though two types adhere to a protocol it doesn't mean they have the same size.
+
+Let's imagine we have this protocol:
+
+```
+protocol StructProtocol {
+    var a: Int { get }
+    func struct_func_1() -> Int
+    func struct_func_2() -> Int
+}
+```
+
+And we have these types:
+
+```
+struct StructTest: structs {
+    var a: Int
+    var b: Int
+    var c: Int
+    func struct_func_1() -> Int{
+        return 1;
+    }
+    func struct_func_2() -> Int{
+        return 2;
+    }
+}
+
+struct StructTest_second: structs {
+    var a: Int
+    var b: Int
+    var c: Int
+    var d: Int
+    func struct_func_1() -> Int{
+        return 8;
+    }
+    func struct_func_2() -> Int{
+        return 9;
+    }
+    func struct_func_11() -> Int{
+        return 10;
+    }
+}
+```
+
+Let's assume we have this situation:
+
+```
+var structTesting: StructTest = StructTest(a: 0x41, b: 0x42, c:0x43)
+var structsArray:[structs]
+structsArray.append(structTesting)
+```
+
+What is it going to happen? Since both structs have different sizes how does Swift manage this? 
+
+This is where `Existential Containers` come into action. `Existential Containers` is a form of creating a type with a generic structure that it can adapt to any type to any conforming protocol. A visual representation of this would be:
+
+```
+8 byte - payload_1 // ptr to heap if the attributes do not fit in the ValueBuffer (ptr is created if size >24 bytes)
+8 byte - payload_2 // 0 if ptr to heap
+8 byte - payload_3 // 0 if ptr to heap
+8 byte - pointer to Value Witness Table (VWT)
+8 byte - pointer to the Protocol Witness Table (PWT)
+```
+
+To continue with the example, when we first append the `structTesting` this will happen:
+
+Because `structTesting` attributes can fit in the the `Value Buffer`(first 3 - 8 bytes) we can store inline. 
+
+A struct will be created in the stack like this:
+
+```
+existentialContainer cont = {}
+existentialContainer.vwt = &type metadata for StructTest
+existentialContainer.pwt = &protocol witness table for StructTest
+existentialContainer.valueBuffer[0] = structTesting.a
+existentialContainer.valueBuffer[1] = structTesting.b
+existentialContainer.valueBuffer[2] = structTesting.c
+Array.append(existentialContainer,array type metadata)
+
+```
+
+When debugging/reading assembly remember that `self` is in `x20` in Swift calling convention.
+
+Therefore, when the first append occurs the array will look like this:
+
+---
+0x0 - metadata
+
+0x8 - ?
+
+0x10 - array size
+
+0x18 - ?
+
+0x20 - 0x41
+
+0x28 - 0x42
+
+0x30 - 0x43
+
+0x38 - VWT
+
+0x40 - PWT
+
+---
+
+Let's assume we create StructTest_second which contains attributes that do not fit the ValueBuffer:
+
+```
+var structTesting2: StructTest_second = StructTest(a: 0x41, b: 0x42, c:0x43, d:0x44)
+structsArray.append(structTesting2)
+```
+
+Which layout are we going to have? Let's see:
+
+---
+0x0 - metadata
+
+0x8 - ?
+
+0x10 - array size
+
+0x18 - ?
+
+0x20 - 0x41
+
+0x28 - 0x42
+
+0x30 - 0x43
+
+0x38 - VWT
+
+0x40 - PWT
+
+0x48 - PTR TO HEAP WITH THE CONTENTS //if we inspect this we'll see the values
+
+0x50 - 0
+
+0x58 - 0
+
+0x60 - VWT
+ 
+0x68 - PWT
+
+---
+
+Now as you can see, even though both structs are different size, they are adapted to fit using Existential Containers :) 
+
+__NOTE: If we were to interact with the ValueBuffer we would make use of the VWT. If we were to iterate over this array and call functions on the array elements, we would go look for them in the PWT.__
 
 ## Protocol conformance descriptors
 
